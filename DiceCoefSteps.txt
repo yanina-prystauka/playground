@@ -1,0 +1,43 @@
+Exercise 1
+
+Generating the preprocessing script
+- created timing files using CreateTimingLandscape.py (submitted with this homework)
+- used the loopTiming.sh to subtract one TR from every sampling point for every condition (the script also submitted with this homework)
+- filled in the relevant fields in the uber_subject GUI taking into account the following point:
+	- Change the smoothing kernel size to 6mm FWHM	- Change the motion threshold to .5 (mm) (adds -regress_censor_motion 0.5 to the afni_proc.py command)	- Check regress motion derivatives (adds -regress_apply_mot_types demean deriv to the afni_proc.py command)	- Use the MNI template (adds -tlrc_base MNI_avg152T1+tlrc to the afni_proc.pycommand)	- Uncheck run cluster simulation	- Setup a single contrast “landmark stimuli with responses vs. only detection stimuli with responses”. The sum of the weights in your contrast vector should be 0.
+	- First TRs to remove per run set to 1
+	- NB! I DID not run 3dREMLfit
+
+-modified the proc.sub_03 script
+	- added -tpattern alt+z to line ~90
+	- added -save_all -AddEdge -deoblique on -master_tlrc 3 to line ~107
+	- added -bout to line ~313
+
+Dice Coef step by step
+
+1. Threshold the statistics at p < .05
+3dmerge -1zscore -1thresh 1.96 -1noneg -prefix stat.thresh 'stats.sub_03+tlrc[17]'
+% ran the same command for both test and retest (from their respective locations)
+
+2. Calculate a mask that contains overlapping regions of the brain in both
+sessions
+3dmask_tool -input ses*/func/sub_03.results/mask_group+tlrc.HEAD -frac 1.0 -prefix mask
+
+3. Binarize the thresholded images
+3dcalc -a stat.thresh+tlrc -prefix stat.test.bin -expr 'astep(a,.1)'
+3dcalc -a stat.thresh+tlrc -prefix stat.retest.bin -expr 'astep(a,.1)'
+
+4. Calculate the Dice coefficient
+3ddot -mask mask+tlrc -dodice stat.test.bin+tlrc stat.retest.bin+tlrc
++++ 30980 voxels in the mask
+0.19214	
+
+Exercise 2
+Prediction: we use smoothing to increase signal-to-noise ration, if this ratio is smaller and if we have more noise, I would expect that the overlap between the two runs will be even smaller because it’s hard to “replicate” noise
+
+I changed the size of the smoothing kernel in proc.sub_03 for test and retest (3dmerge -1blur_fwhm 3.0 -doall -prefix pb03.$subj.r$run.blur) and ran the preprocessing steps. Then I calculated the Dice coef following the steps from Exercise 1 and, for some reason, the resulting coefficient was higher, which means that the overlap between the two runs was bigger with the smaller smoothing kernel which doesn’t confirm my prediction. What do you think?
+
+3ddot -mask mask+tlrc -dodice stat.test.bin+tlrc stat.retest.bin+tlrc
++++ 30980 voxels in the mask
+0.274485
+
