@@ -41,3 +41,20 @@ I changed the size of the smoothing kernel in proc.sub_03 for test and retest (3
 +++ 30980 voxels in the mask
 0.274485
 
+*******
+Re-ran stats using 
+3dmerge -1zscore -1thresh 1.96 -1noneg -prefix stat.thresh 'stats.sub_03+tlrc[T-C_GLT#0_Tstat]'
+in step 1.
+
+For kernel size 6 mm:
+[PSY134C-C00539:~/Documents/IBRAIN/Homework0808] yanina% 3ddot -mask mask+tlrc -dodice stat.test.bin+tlrc stat.retest.bin+tlrc
++++ 30980 voxels in the mask
+0.198745
+
+For kernel size 3 mm:
+[PSY134C-C00539:Homework0808/bids/sub-03] yanina% 3ddot -mask mask+tlrc -dodice stat.test.bin+tlrc stat.retest.bin+tlrc
++++ 30980 voxels in the mask
+0.161541
+
+Now I got the results which confirm my prediction: with smaller kernel size, we get more noise, and thus less overlap between the two sessions.
+
