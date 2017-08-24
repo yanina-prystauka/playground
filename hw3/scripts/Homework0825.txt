@@ -1,0 +1,135 @@
+#PART 1: Test the hypothesis that the average activation difference across subjects for Words > fixation (the Words contrast at the single subject level) is greater than zero.
+
+#Mask out non-brain regions and coverage differences
+across subjects
+3dmask_tool -input export/masks/full_mask.sub-* -frac 1.0 -prefix mask
+
+#Choose the correct sub-brick
+#use 3dinfo to explore the options (pick a random participant)
+3dinfo -label export/betas/stats.sub-08_REML+tlrc.BRIK
+
+#Look up index of Words#0_Coef - this didn't work :-()
+#3dinfo -label2index ’Words#0_Coef’ export/betas/stats.sub-08_REML+tlrc.BRIK
+
+#run a t test
+3dttest++ -mask mask+tlrc -prefix words-baseline -setA 'export/betas/stats*+tlrc.HEAD[Words#0_Coef]'
+
+#Copy or link an anatomical file for viewing 
+3dcopy ~/abin/MNI_avg152T1+tlrc .
+
+#PART 2: Cluster correction
+
+# create an average blur file; extract the relevant row
+
+tcsh:
+foreach f (export/blurs/blur*.1D)
+	1d_tool.py -infile $f -select_rows 3 -write - >> blurs.acf.1D
+end
+
+bash:
+for f in export/blurs/blur*.1D; do 1d_tool.py -infile $f -select_rows 3 -write - >> blurs.acf.1D
+done
+
+#average the estimates
+1dsum -mean blurs.acf.1D
+# - the output of this is 0.823343 4.20372 14.3254 10.5089 
+
+3dClustSim -mask mask+tlrc -acf 0.823343 4.20372 14.3254 -both -pthr .05 .01 .001  -athr .1 .05 .025 .01 -iter 2000 -prefix cluster -cmd refit.cmd
+
+#results -> stat
+`cat refit.cmd` words-baseline+tlrc
+
+#mask image
+3dcalc -a words-baseline+tlrc -b mask+tlrc -expr 'a*b' -prefix stats_masked
+
+#check cluster 1D file
+3dAttribute AFNI_CLUSTSIM_NN3_1sided words-baseline+tlrc
+
+Output
+  pthr="0.05,0.01,0.001"
+  athr="0.1,0.05,0.025,0.01"
+  mask_dset_idcode="AFN_Xs_Rg7QDdTH0d5MiqMp1Jw"
+  mask_dset_name="./mask+tlrc.HEAD"
+  mask_count="57300" >
+ 665 819 970 1239
+ 73.8979 90 104.4951 124.6502
+ 17.36852 21.262 25.22725 29.47508
+
+ for p < 0.001 and p<0.5 cluster size is 21.3
+
+#convert t-stat (index 1) to Z 
+ 3dmerge -1zscore -prefix statz 'stats_masked+tlrc[1]'
+
+#find clusters with min size = 21
+ 3dclust -1Dformat -nosum -prefix clustered -savemask cluster_mask -inmask -1noneg -1clip 3 -dxyz=1 1.74 21 statz+tlrc
+
+
+#Cluster report for file statz+tlrc 
+#[Connectivity radius = 1.74 mm  Volume threshold = 567.00 ]
+#[Single voxel volume = 27.0 (microliters) ]
+#[Voxel datum type    = float ]
+#[Voxel dimensions    = 3.000 mm X 3.000 mm X 3.000 mm ]
+#[Coordinates Order   = RAI ]
+#[Fake voxel dimen    = 1.000 mm X 1.000 mm X 1.000 mm ]
+#Mean and SEM based on Absolute Value of voxel intensities: 
+#Volume  CM RL  CM AP  CM IS  minRL  maxRL  minAP  maxAP  minIS  maxIS    Mean     SEM    Max Int  MI RL  MI AP  MI IS
+#------  -----  -----  -----  -----  -----  -----  -----  -----  -----  -------  -------  -------  -----  -----  -----
+    413   38.4   71.1  -11.7    9.0   51.0   36.0   99.0  -24.0    3.0   3.5068   0.0179   5.0654   33.0   87.0   -6.0 
+    287  -37.4   72.3  -11.8  -51.0  -15.0   36.0   99.0  -27.0    6.0   3.4008   0.0168   4.3925  -42.0   57.0  -18.0 
+    175    0.5   -8.8   54.9  -15.0   12.0  -27.0    6.0   45.0   66.0   3.7189   0.0351   4.9605    6.0  -12.0   51.0 
+    105   48.8    0.2   43.0   39.0   54.0   -9.0   12.0   27.0   60.0   3.4784   0.0391   4.9438   48.0   -6.0   36.0 
+     44  -30.2   57.0   46.9  -36.0  -24.0   51.0   63.0   39.0   57.0   3.3407   0.0363   3.8046  -33.0   60.0   45.0 
+     39   50.0   47.9    6.2   39.0   57.0   45.0   54.0    0.0   12.0   3.4099   0.0526   4.0637   51.0   48.0    0.0 
+     38  -43.0    3.1   51.5  -48.0  -36.0    0.0    9.0   39.0   60.0   3.2911   0.0379   3.9016  -45.0    0.0   51.0 
+     37   -9.5   69.1  -18.8  -15.0   -6.0   63.0   75.0  -24.0  -12.0   3.6281   0.0746   4.5484   -9.0   66.0  -18.0 
+     31   24.3   53.1   44.7   21.0   30.0   48.0   60.0   39.0   48.0   3.4774   0.0492    4.083   24.0   51.0   45.0 
+     30   32.6  -24.8    7.7   27.0   39.0  -30.0  -18.0    0.0   15.0   3.4422   0.0537    3.917   33.0  -21.0    9.0 
+     22    4.6   72.9  -20.2    0.0    9.0   69.0   75.0  -27.0  -15.0   3.3836   0.0573   3.9008    3.0   72.0  -24.0
+
+#PART 3 FDR Correction
+#Add new FDR curves (e.g. adding or changing the mask)
+3drefit -addFDR -FDRmask mask+tlrc words-baseline+tlrc
+
+#run the FDR correction (do we run it on the stats-masked file or on the output of 3dttest++?)
+ 3dFDR -input stats_masked+tlrc'[1]' -prefix correctedZ
+
+
+#find significant clusters after FDR correction
+3dclust -1Dformat -nosum -prefix clusteredFDR -savemask cluster_maskFDR -inmask -1noneg -1clip 3 -dxyz=1 1.74 1 correctedZ+tlrc
+
+#Cluster report for file correctedZ+tlrc 
+#[Connectivity radius = 1.74 mm  Volume threshold = 81.00 ]
+#[Single voxel volume = 27.0 (microliters) ]
+#[Voxel datum type    = float ]
+#[Voxel dimensions    = 3.000 mm X 3.000 mm X 3.000 mm ]
+#[Coordinates Order   = RAI ]
+#[Fake voxel dimen    = 1.000 mm X 1.000 mm X 1.000 mm ]
+#Mean and SEM based on Absolute Value of voxel intensities: 
+#
+#Volume  CM RL  CM AP  CM IS  minRL  maxRL  minAP  maxAP  minIS  maxIS    Mean     SEM    Max Int  MI RL  MI AP  MI IS
+#------  -----  -----  -----  -----  -----  -----  -----  -----  -----  -------  -------  -------  -----  -----  -----
+    115    1.3   59.0   48.7  -12.0   12.0   42.0   78.0   42.0   57.0   3.0607   0.0055   3.2815    3.0   66.0   45.0 
+     37    9.9   67.3   29.3    3.0   18.0   63.0   75.0   21.0   36.0    3.047   0.0058    3.113   15.0   66.0   24.0 
+     30    5.3   38.3   38.9    0.0   12.0   33.0   42.0   36.0   42.0   3.0494   0.0064   3.1054   12.0   39.0   39.0 
+     30    2.2   -7.8   55.3   -9.0    6.0  -15.0    0.0   51.0   63.0   3.0455    0.006    3.113    6.0  -12.0   51.0 
+     16   -1.1   21.2   43.3   -3.0    3.0    9.0   30.0   39.0   48.0   3.0631   0.0103   3.1054    0.0   18.0   42.0 
+     13   33.9   87.5   -6.9   30.0   39.0   84.0   90.0   -9.0   -3.0   3.0463   0.0092    3.113   33.0   87.0   -6.0 
+     10  -11.4   80.4   44.1  -18.0   -3.0   78.0   84.0   42.0   48.0    3.055   0.0118   3.1054  -15.0   81.0   45.0 
+
+#create output tables
+
+while read line; do 
+	clust=`echo "$line" | awk '{print $1,$13,$14,$15,$16}'`
+	echo $clust >> ClustPeak.1D
+done << CLUST
+`cat cluster_table.1D |tail -n +5`
+CLUST
+​
+while read line; do 
+	clust=`echo "$line" | awk '{print $1,$13,$14,$15,$16}'`
+	echo $clust >> FDRPeak.1D
+done << CLUST
+`cat FDRCorr.1D |tail -n +5`
+CLUST
+
+
